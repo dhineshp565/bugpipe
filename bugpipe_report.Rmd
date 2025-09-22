@@ -1,5 +1,5 @@
 ---
-title: "Streptococcus suis Typing Report" 
+title: "Bacterial isolate - Whole genome sequencing report" 
 date: "`r Sys.Date()`"
 output: html_document
 params:
@@ -60,6 +60,33 @@ params:
     cat("```\n")
     cat(busco_file, sep = "\n")
     cat("\n```\n")
+
+    flyeinfo_id <- (paste(i,"_flye-info.txt",sep=""))
+    flyeinfo_raw <- read.csv( flyeinfo_id,header = TRUE,sep="\t")
+    flyeinfo_final <- flyeinfo_raw[,c(1,2,3,4)]
+    colnames(flyeinfo_final) <- c("SEQUENCE", "LENGTH", "COVERAGE", "IS_CIRCULAR")
+
+    # Format the LENGTH column with appropriate units (bp, Kb, Mb, Gb)
+    flyeinfo_final$LENGTH <- sapply(flyeinfo_final$LENGTH, function(x) {
+      if (x >= 1e9) {
+        paste(round(x / 1e9, 2), "Gb")
+      } else if (x >= 1e6) {
+        paste(round(x / 1e6, 2), "Mb")
+      } else if (x >= 1e3) {
+        paste(round(x / 1e3, 2), "Kb")
+      } else {
+        paste(x, "bp")
+      }
+    })
+    
+    # Display the flyeinfo table with formatted lengths
+    
+    print(knitr::kable(flyeinfo_final,align= 'llll',caption = "Assembly statistics - \n Generated using flye assembler within dragonflye (https://github.com/rpetit3/dragonflye)"))
+  
+    
+    cat("\n```\n")
+
+
     }
 
 

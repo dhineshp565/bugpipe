@@ -26,7 +26,7 @@ def main():
                 print("Rank: " + match['rank'])
                 print("Taxon:" + match['taxon'])
                 print("Support:" + str(match['support']) + "%")
-                print("Taxonomy" + match['taxonomy'] + "\n")
+                print("Taxonomy:" + match['taxonomy'] + "\n")
             
     else:
         print(response.text)
