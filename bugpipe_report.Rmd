@@ -84,11 +84,12 @@ params:
     print(knitr::kable(flyeinfo_final,align= 'llll',caption = "Assembly statistics - \n Generated using flye assembler within dragonflye (https://github.com/rpetit3/dragonflye)"))
   
     
-    cat("\n```\n")
+    
 
 
     }
 
 
 ```
+
 <br>
