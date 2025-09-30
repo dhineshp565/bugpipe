@@ -126,7 +126,6 @@ Results/
 ## Citation
 
 If you use BugPipe in your research, please cite:
-- This pipeline: [Add your citation here]
 - PubMLST: Jolley & Maiden (2010). BMC Bioinformatics, 11:595
 
 ## Support
