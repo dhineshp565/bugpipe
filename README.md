@@ -101,7 +101,7 @@ Results/
 
 1. **Input Processing:** Merges FASTQ files per sample
 2. **Quality Control:** Optional barcode/adapter trimming with Porechop
-3. **Assembly:** Genome assembly using Dragonflye (Flye + Raven)
+3. **Assembly:** Genome assembly using Dragonflye (Flye)
 4. **Polishing:** Consensus polishing with Medaka
 5. **Quality Assessment:** Completeness evaluation with BUSCO
 6. **Typing & Annotation:**
@@ -123,14 +123,5 @@ Results/
 | [BUSCO](https://busco.ezlab.org/) | Assembly completeness | Manni, M. et al. |
 | [rMLST API](https://pubmlst.org/species-id) | Species identification | Jolley & Maiden, 2010 |
 
-## Citation
 
-If you use BugPipe in your research, please cite:
-- PubMLST: Jolley & Maiden (2010). BMC Bioinformatics, 11:595
-
-## Support
-
-For issues and questions:
-- Open an issue on [GitHub](https://github.com/dhineshp565/bugpipe/issues)
-- Check the [documentation](link-to-docs)
 
