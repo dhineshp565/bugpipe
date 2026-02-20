@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 # This script takes the outputs form abricate and merges them into one tabsepearted file for imprting into LIMS casebook
+# Extract data from *_sero.csv files
+awk 'FNR==1 && NR!=1 { while (/^#F/) getline; } 1 {print}' *_serotype.csv > sero_file.csv
 
+# Add "CATEGORY" header to sero_file.csv
+awk 'BEGIN{print "CATEGORY"} {if(NR>1) print ($0=="" ? "" : "serotype")}' sero_file.csv > sero_column.txt
+
+# Combine sero_file.csv and sero_column.txt into serotype_res.csv
+paste sero_file.csv sero_column.txt > serotype_res.csv
 
 # Extract data from *_vf.csv files
 awk 'FNR==1 && NR!=1 { while (/^#F/) getline; } 1 {print}' *_vf.csv > vf_file.csv

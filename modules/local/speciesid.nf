@@ -6,7 +6,7 @@ process speciesid {
 	input:
 	tuple val(SampleName),path(assembly)
 	output:
-	path("${SampleName}_speciesid.txt")
+	tuple val(SampleName),path("${SampleName}_speciesid.txt")
 	script:
 	"""
 	rMLST_speciesID.py --file ${assembly} > ${SampleName}_speciesid.txt
