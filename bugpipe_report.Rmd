@@ -41,19 +41,19 @@ params:
     sero_id <- (paste(i,"_serotype.tsv",sep=""))
     sero_raw <- read.csv(sero_id,header = TRUE,sep = "\t")
     sero_final<- sero_raw[,c(1,6,10,11,15)]
-    colnames(sero_final_1) <- c("SAMPLE","GENE","%COVERAGE","%IDENTITY","SEROTYPE")
+    colnames(sero_final) <- c("SAMPLE","GENE","%COVERAGE","%IDENTITY","SEROTYPE")
     print(knitr::kable(sero_final,align='lcccl',caption = "Serotype - \n Predicted using ABRicate (https://github.com/tseemann/abricate] with builtin and custom databases"))
     cat("\n")
   
   
-    vf_id <- (paste(i,"_vf.csv",sep=""))
+    vf_id <- (paste(i,"_vf.tsv",sep=""))
     vf_raw <- read.csv(vf_id,header = TRUE,sep="\t")
     vf_final <- vf_raw[,c(1,6,10,11,15)]
     colnames(vf_final) <- c("SAMPLE","GENE","%COVERAGE","%IDENTITY","VIRULENCE FACTOR")
     print(knitr::kable(vf_final,align= 'lcccl',caption = "Virulence factors - \n Predicted using ABRicate (https://github.com/tseemann/abricate] with builtin and custom databases"))
     cat("\n")
 
-    amr_id <- (paste(i,"_AMR.csv",sep=""))
+    amr_id <- (paste(i,"_AMR.tsv",sep=""))
     amr_raw <- read.csv( amr_id,header = TRUE,sep="\t")
     amr_final <- amr_raw[,c(1,6,10,11,15)]
     colnames(amr_final) <- c("SAMPLE","GENE","%COVERAGE","%IDENTITY","AMR GENE")

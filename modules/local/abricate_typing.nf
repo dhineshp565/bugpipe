@@ -8,9 +8,9 @@ process abricate_typing {
 	path(db)
 	path(dbmap)
 	output:
-	path("${SampleName}_vf.csv"),emit:vif
-	path("${SampleName}_AMR.csv"),emit:AMR
-	path ("${SampleName}_serotype.csv"),emit:sero
+	path("${SampleName}_vf.tsv"),emit:vif
+	path("${SampleName}_AMR.tsv"),emit:AMR
+	path ("${SampleName}_serotype.tsv"),emit:sero
 	
 	script:
 	"""

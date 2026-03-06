@@ -38,7 +38,7 @@ workflow {
 	rmd_file = file("${baseDir}/bugpipe_report.Rmd")
 	make_report(
 		rmd_file,
-		speciesid.out.collect(),
+		speciesid.out.map { sample, speciesid -> speciesid }.collect(),
 		ASSEMBLY.out.busco_results.collect(),
 		QCREADS.out.csv,
 		abricate_typing.out.vif.collect(),
