@@ -4,7 +4,7 @@ nextflow.enable.dsl=2
 
 
 include { mlst } from './modules/local/mlst.nf'
-include { abricate } from './modules/local/abricate.nf'
+include { abricate_typing } from './modules/local/abricate_typing.nf'
 include { make_limsfile } from './modules/local/make_limsfile.nf'
 include { speciesid } from './modules/local/speciesid.nf'
 include { make_report } from './modules/local/make_report.nf'
@@ -25,9 +25,13 @@ workflow {
 	// Downstream typing and annotation using polished assemblies
 	speciesid(ASSEMBLY.out.medaka_assembly)
 	mlst(ASSEMBLY.out.medaka_assembly)
-	abricate(ASSEMBLY.out.medaka_assembly)
+	assembly_species=ASSEMBLY.out.medaka_assembly.join(speciesid.out)
+	db=("${baseDir}/db")
+	dbmap= file("${baseDir}/speciesdb_map.tsv")
 
-	versionfile = file("${baseDir}/software_version.csv")
+	abricate_typing(assembly_species,db,dbmap)
+
+	
 	//make_limsfile (abricate.out.vif.collect(), abricate.out.AMR.collect(), versionfile)
 
 	// Report generation
@@ -37,8 +41,9 @@ workflow {
 		speciesid.out.collect(),
 		ASSEMBLY.out.busco_results.collect(),
 		QCREADS.out.csv,
-		abricate.out.vif.collect(),
-		abricate.out.AMR.collect(),
+		abricate_typing.out.vif.collect(),
+		abricate_typing.out.AMR.collect(),
+		abricate_typing.out.sero.collect(),
 		ASSEMBLY.out.flye_info.collect()
 	)
 

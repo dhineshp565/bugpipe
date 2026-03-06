@@ -10,6 +10,7 @@ process make_report {
 	path (samplelist)
 	path (vffiles)
 	path (amrfiles)
+	path (serofiles)
     path(flyeinfo)
 	output:
 	path("*.html")

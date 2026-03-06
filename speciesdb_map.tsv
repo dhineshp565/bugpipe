@@ -1,0 +1,8 @@
+#Species	Serotype_DB	Serotype_Type	VF_DB	VF_Type
+Glaesserella parasuis	gparasuis_serodb	custom	gparasuis_vfdb	custom
+Streptococcus suis	ssuis_serodb	custom	ssuis_vfdb	custom
+Mannheimia haemolytica	mhaemolytica_serodb	custom	mhaemolytica_vfdb	custom
+Escherichia coli	ecoh	builtin	ecoli_vf	builtin
+Klebsiella aerogenes	kaerogenes_serodb	custom	vfdb	builtin
+Staphylococcus aureus	saureus_serodb	custom	vfdb	builtin
+Histophilus somni	None	None	hsomni_vfdb	custom
