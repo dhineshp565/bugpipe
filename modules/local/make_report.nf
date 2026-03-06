@@ -12,6 +12,7 @@ process make_report {
 	path (amrfiles)
 	path (serofiles)
     path(flyeinfo)
+	path(mlst)
 	output:
 	path("*.html")
 

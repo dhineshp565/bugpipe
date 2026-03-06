@@ -46,7 +46,7 @@ AMROut="${SampleName}_AMR.tsv"       # AMR (antimicrobial resistance) results
 # -------------------------
 # Default output line
 # -------------------------
-DefaultLine="${SampleName}\t${SampleName}_contig\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone"
+DefaultLine="${SampleName}\t${SampleName}_contig\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone_found"
 HeaderOnly=1  # number of lines if only header exists
 
 # -------------------------
@@ -83,7 +83,7 @@ if [[ -n "${serodb:-}" && "${serodb}" != "None" ]]; then
 else
     # Species not in table or no serotype DB available
     echo -e "#FILE\tSEQUENCE\tSTART\tEND\tSTRAND\tGENE\tCOVERAGE\tCOVERAGE_MAP\tGAPS\t%COVERAGE\t%IDENTITY\tDATABASE\tACCESSION\tPRODUCT\tRESISTANCE" > "$SEROout"
-    echo -e "$DefaultLine" >> "$SEROout"
+    echo -e "${SampleName}\t${SampleName}_contig\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNone\tNo_serotyping_scheme_available" >> "$SEROout"
 fi
 
 # Append default line if only header

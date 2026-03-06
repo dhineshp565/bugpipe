@@ -11,6 +11,7 @@ include { make_report } from './modules/local/make_report.nf'
 
 include { QCREADS } from './subworkflows/qcreads.nf'
 include { ASSEMBLY } from './subworkflows/assembly.nf'
+include { BUGTYPING } from './subworkflows/bugtyping.nf'
 
 workflow {
 
@@ -29,7 +30,7 @@ workflow {
 	db=("${baseDir}/db")
 	dbmap= file("${baseDir}/speciesdb_map.tsv")
 
-	abricate_typing(assembly_species,db,dbmap)
+	BUGTYPING(assembly_species,db,dbmap)
 
 	
 	//make_limsfile (abricate.out.vif.collect(), abricate.out.AMR.collect(), versionfile)
@@ -41,10 +42,11 @@ workflow {
 		speciesid.out.map { sample, speciesid -> speciesid }.collect(),
 		ASSEMBLY.out.busco_results.collect(),
 		QCREADS.out.csv,
-		abricate_typing.out.vif.collect(),
-		abricate_typing.out.AMR.collect(),
-		abricate_typing.out.sero.collect(),
-		ASSEMBLY.out.flye_info.collect()
+		BUGTYPING.out.vf.collect(),
+		BUGTYPING.out.AMR.collect(),
+		BUGTYPING.out.sero.collect(),
+		ASSEMBLY.out.flye_info.collect(),
+		mlst.out.collect()
 	)
 
 }

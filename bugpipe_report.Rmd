@@ -21,7 +21,7 @@ params:
 
 <br>
 
-### AMR,VF and BUSCO RESULTS {.tabset .tabset-pills}
+### TYPING,AMR,VF and BUSCO RESULTS {.tabset .tabset-pills}
 ```{r, results='asis',echo=FALSE}
 
   samplelist <- read.csv(params$csv,header=FALSE,sep = ',')[-1,]
@@ -44,7 +44,11 @@ params:
     colnames(sero_final) <- c("SAMPLE","GENE","%COVERAGE","%IDENTITY","SEROTYPE")
     print(knitr::kable(sero_final,align='lcccl',caption = "Serotype - \n Predicted using ABRicate (https://github.com/tseemann/abricate] with builtin and custom databases"))
     cat("\n")
-  
+
+    mlst_id <- (paste(i,"_MLST.tsv",sep=""))
+    mlst_raw <- read.csv(mlst_id,header = TRUE,sep = "\t",fill = TRUE,check.names = FALSE)
+    print(knitr::kable(mlst_raw,align= 'lcccccc',caption = "MLST - Predicted using https://pubmlst.org/ and MLST tool (https://github.com/tseemann/mlst)"))
+    cat("\n")
   
     vf_id <- (paste(i,"_vf.tsv",sep=""))
     vf_raw <- read.csv(vf_id,header = TRUE,sep="\t")
