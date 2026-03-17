@@ -22,7 +22,7 @@ process sistr {
         sistr -i ${assembly} ${SampleName} -f sv -o ${SampleName}_sistr.tsv --qc
         sed -i 's/genome/id/g' ${SampleName}_serotype.tsv
 
-    elif [[ "bacteria" == "Salmonella enterica" ]]; then
+    elif [[ "bacteria" == "Klebsiella pneumoniae" ]]; then
 
         kaptive assembly kpsc_k ${assembly} -o ${SampleName}_kaptive_k.tsv
         kaptive assembly kpsc_o ${assembly} -o ${SampleName}_kaptive_o.tsv
