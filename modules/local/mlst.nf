@@ -26,7 +26,7 @@ process mlst {
 
 		# Insert minimal header
 		sed -i '1i\\SAMPLE\tSCHEME\tST' ${SampleName}_MLST.tsv
-		sed -i 's/-\t-/No_MLST_scheme_availble\tNA/g' ${SampleName}_MLST.tsv
+		sed -i 's/-\t-/No_MLST_scheme_available\tNA/g' ${SampleName}_MLST.tsv
 
 	else
 

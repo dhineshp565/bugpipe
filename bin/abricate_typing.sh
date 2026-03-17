@@ -90,7 +90,7 @@ fi
 if [[ $(wc -l < "$SEROout") -eq $HeaderOnly ]]; then
     echo -e "$DefaultLine" >> "$SEROout"
 fi
-
+sed -i 's,_assembly.fasta,,g' "$SEROout"
 # -------------------------
 # Virulence factor search
 # -------------------------
@@ -110,7 +110,7 @@ fi
 if [[ $(wc -l < "$VFOut") -eq $HeaderOnly ]]; then
     echo -e "$DefaultLine" >> "$VFOut"
 fi
-
+sed -i 's,_assembly.fasta,,g' "$VFOut"
 # -------------------------
 # AMR detection (always run)
 # -------------------------
@@ -120,3 +120,4 @@ abricate --db card "$Consensus" > "$AMROut"
 if [[ $(wc -l < "$AMROut") -eq $HeaderOnly ]]; then
     echo -e "$DefaultLine" >> "$AMROut"
 fi
+sed -i 's,_assembly.fasta,,g' "$AMROut"

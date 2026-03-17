@@ -91,3 +91,7 @@
 2026-03-17 15:28:44	15.5s	stupefied_maxwell	OK	f1f866812f1d24e057a925499367f45a	96070c6a-2403-4b12-83ff-5731e940bc36	nextflow run main.nf --input /data/Dhinesh/bugpipe_test_data --out_dir bugppipe_res3 -resume
 2026-03-17 15:34:55	30.7s	happy_allen	OK	f1f866812f1d24e057a925499367f45a	96070c6a-2403-4b12-83ff-5731e940bc36	nextflow run main.nf --input /data/Dhinesh/bugpipe_test_data --out_dir bugppipe_res3 -resume
 2026-03-17 15:36:48	31s	disturbed_rutherford	OK	f1f866812f1d24e057a925499367f45a	96070c6a-2403-4b12-83ff-5731e940bc36	nextflow run main.nf --input /data/Dhinesh/bugpipe_test_data --out_dir bugppipe_res4 -resume
+2026-03-17 16:13:22	4.3s	pensive_neumann	ERR	3b9140629a29eac673544bcdf7990d00	96070c6a-2403-4b12-83ff-5731e940bc36	nextflow run main.nf --input /data/Dhinesh/bugpipe_test_data --out_dir bugppipe_res4 -resume
+2026-03-17 16:14:05	30.2s	dreamy_mccarthy	ERR	3b9140629a29eac673544bcdf7990d00	96070c6a-2403-4b12-83ff-5731e940bc36	nextflow run main.nf --input /data/Dhinesh/bugpipe_test_data --out_dir bugppipe_res4 -resume
+2026-03-17 16:15:02	14.8s	wise_kalman	ERR	3b9140629a29eac673544bcdf7990d00	96070c6a-2403-4b12-83ff-5731e940bc36	nextflow run main.nf --input /data/Dhinesh/bugpipe_test_data --out_dir bugppipe_res4 -resume
+2026-03-17 16:19:11	16s	chaotic_lalande	OK	3b9140629a29eac673544bcdf7990d00	96070c6a-2403-4b12-83ff-5731e940bc36	nextflow run main.nf --input /data/Dhinesh/bugpipe_test_data --out_dir bugppipe_res4 -resume

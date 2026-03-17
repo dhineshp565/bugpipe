@@ -5,7 +5,7 @@ nextflow.enable.dsl=2
 
 include { mlst } from './modules/local/mlst.nf'
 include { abricate_typing } from './modules/local/abricate_typing.nf'
-include { make_limsfile } from './modules/local/make_limsfile.nf'
+include { makelimsfile } from './modules/local/makelimsfile.nf'
 include { speciesid } from './modules/local/speciesid.nf'
 include { bakta } from './modules/local/bakta.nf'
 include { multiqc } from './modules/local/multiqc.nf'
@@ -22,7 +22,7 @@ workflow {
 	// Assembly subworkflow (uses QC reads and genome size)
 	ASSEMBLY(QCREADS.out.reads, params.gsize)
 
-	versionfile = file("${baseDir}/software_version.csv")
+	
 
 	// Downstream typing and annotation using polished assemblies
 	speciesid(ASSEMBLY.out.medaka_assembly)
@@ -54,5 +54,7 @@ workflow {
 		mlst.out.collect()
 	)
 	multiqc (QCREADS.out.read_stats)
+	versionfile = file("${baseDir}/software_version.tsv")
+	makelimsfile(BUGTYPING.out.sero.map {sample, sero -> sero }.collect(),BUGTYPING.out.vf.collect(),BUGTYPING.out.amr.collect(),mlst.out.collect(),versionfile)
 }
 
