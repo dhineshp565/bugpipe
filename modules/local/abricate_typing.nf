@@ -10,7 +10,7 @@ process abricate_typing {
 	output:
 	path("${SampleName}_vf.tsv"),emit:vif
 	path("${SampleName}_AMR.tsv"),emit:AMR
-	path ("${SampleName}_serotype.tsv"),emit:sero
+	tuple val(SampleName),path ("${SampleName}_serotype.tsv"),emit:sero
 	
 	script:
 	"""

@@ -7,8 +7,9 @@ include { mlst } from './modules/local/mlst.nf'
 include { abricate_typing } from './modules/local/abricate_typing.nf'
 include { make_limsfile } from './modules/local/make_limsfile.nf'
 include { speciesid } from './modules/local/speciesid.nf'
+include { bakta } from './modules/local/bakta.nf'
+include { multiqc } from './modules/local/multiqc.nf'
 include { make_report } from './modules/local/make_report.nf'
-
 include { QCREADS } from './subworkflows/qcreads.nf'
 include { ASSEMBLY } from './subworkflows/assembly.nf'
 include { BUGTYPING } from './subworkflows/bugtyping.nf'
@@ -32,6 +33,10 @@ workflow {
 
 	BUGTYPING(assembly_species,db,dbmap)
 
+	if (params.annotate) {
+		bakta(ASSEMBLY.out.medaka_assembly,params.bakta_db)
+	}
+
 	
 	//make_limsfile (abricate.out.vif.collect(), abricate.out.AMR.collect(), versionfile)
 
@@ -43,11 +48,11 @@ workflow {
 		ASSEMBLY.out.busco_results.collect(),
 		QCREADS.out.csv,
 		BUGTYPING.out.vf.collect(),
-		BUGTYPING.out.AMR.collect(),
-		BUGTYPING.out.sero.collect(),
+		BUGTYPING.out.amr.collect(),
+		BUGTYPING.out.sero.map {sample, sero -> sero }.collect(),
 		ASSEMBLY.out.flye_info.collect(),
 		mlst.out.collect()
 	)
-
+	multiqc (QCREADS.out.read_stats)
 }
 
