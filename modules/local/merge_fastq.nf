@@ -2,7 +2,7 @@
 //merge fastq files for each SampleName and create a merged file for each SampleNames
 process merge_fastq {
 	publishDir "${params.out_dir}/merged"
-	label "low"
+	label "high"
 	input:
 	tuple val(SampleName),path(SamplePath)
 	output:

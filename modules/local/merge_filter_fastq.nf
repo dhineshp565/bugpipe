@@ -3,7 +3,7 @@ nextflow.enable.dsl=2
 
 process merge_filter_fastq {
 	publishDir "${params.out_dir}/merged"
-	label "low"
+	label "high"
 	input:
 	tuple val(SampleName),path(SamplePath)
 	val (qscore)

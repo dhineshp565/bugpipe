@@ -75,10 +75,10 @@ vf_type=$(awk -F'\t' -v sp="$bacteria" '$1==sp {print $5}' "$mapfile")
 # -------------------------
 if [[ -n "${serodb:-}" && "${serodb}" != "None" ]]; then
     if [[ "$serotype_type" == "builtin" ]]; then
-        abricate --db "$serodb" -minid 80 -mincov 80 --quiet "$Consensus" > "$SEROout"
+        abricate --db "$serodb" -minid 90 -mincov 80 --quiet "$Consensus" > "$SEROout"
     else
         # custom database
-        abricate --datadir "$SERODB_DIR" --db "$serodb" -minid 80 -mincov 80 --quiet "$Consensus" > "$SEROout"
+        abricate --datadir "$SERODB_DIR" --db "$serodb" -minid 90 -mincov 80 --quiet "$Consensus" > "$SEROout"
     fi
 else
     # Species not in table or no serotype DB available
@@ -96,10 +96,10 @@ sed -i 's,_assembly.fasta,,g' "$SEROout"
 # -------------------------
 if [[ -n "${vfdb:-}" && "${vfdb}" != "None" ]]; then
     if [[ "$vf_type" == "builtin" ]]; then
-        abricate --db "$vfdb" -minid 80 -mincov 80 --quiet "$Consensus" > "$VFOut"
+        abricate --db "$vfdb" -minid 90 -mincov 80 --quiet "$Consensus" > "$VFOut"
     else
         # custom database
-        abricate --datadir "$VFDB_DIR" --db "$vfdb" -minid 80 -mincov 80 --quiet "$Consensus" > "$VFOut"
+        abricate --datadir "$VFDB_DIR" --db "$vfdb" -minid 90 -mincov 80 --quiet "$Consensus" > "$VFOut"
     fi
 else
     # Species not in table → run default VFDB search

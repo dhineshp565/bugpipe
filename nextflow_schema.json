@@ -38,12 +38,16 @@
             "description": "",
             "default": "",
             "properties": {
-                "trim_barcodes": {
-                    "type": "string",
-                    "description": "Select Yes for trimming barcodes and adapter sequences",
-                    "enum": [
-                        "Yes"
-                    ]
+                "trim_adapters": {
+                   "type": "boolean",
+                    "default": false,
+                    "description": "Trim sequencing adapters and barcodes using porechop"
+                },
+                "qscore": {
+                    "type": "integer",
+                    "default": 10,
+                    "enum":[9,10,15,20,25,30,35,40],
+                    "description": "Minimum read quality score threshold for filtering"
                 },
                 "medaka_model": {
                     "type": "string",
@@ -155,8 +159,24 @@
                         "mammalia_odb10",
                         "insecta_odb10"
 
-                      
                     ]
+                    
+                },
+                "annotate": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable genome annotation using Bakta"
+                },
+                "bakta_db": {
+                    "type": "string",
+                    "default": "/data/referenceDB/bakta_db/bakta_db-light",
+                    "description": "Path to Bakta database directory",
+                    "format": "directory-path",
+                    "enum": [ 
+                        "/data/referenceDB/bakta_db/bakta_db-light",
+                        "/data/referenceDB/bakta_db/bakta_db-full"
+                ]
+                    
                 }
 
             }

@@ -2,7 +2,7 @@
 nextflow.enable.dsl=2
 
 process nanoplot {
-	label "medium"
+	label "high"
 	publishDir "${params.out_dir}/nanoplot",mode:"copy"
 	input:
 	tuple val(SampleName),path(fastq)

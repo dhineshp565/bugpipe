@@ -44,7 +44,7 @@ process serotype_ssuis {
 }
 
 process serotype_salmonella {
-    label "high"
+    label "low"
     publishDir "${params.out_dir}/serotype", mode: "copy"
 
     input:
@@ -64,7 +64,7 @@ process serotype_salmonella {
     """
 }
 process serotype_kpneumoniae {
-    label "high"
+    label "low"
     publishDir "${params.out_dir}/serotype", mode: "copy"
 
     input:

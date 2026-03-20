@@ -12,7 +12,7 @@ workflow QCREADS {
     take:
         fastq_path // Channel: input data paths
         qscore // Minimum qscore for filtering
-        trim_barcodes // Boolean to trim barcodes
+        trim_adapters // Boolean to trim adapters/barcodes
     main:
         data = channel.fromPath(fastq_path)
         
@@ -28,7 +28,7 @@ workflow QCREADS {
         nanoplot(merge_filter_fastq.out.reads)    
 
         //trim barcodes and adapter sequences
-        if (trim_barcodes){
+        if (trim_adapters){
             porechop(merge_filter_fastq.out.reads)
             reads = porechop.out       
         } else {

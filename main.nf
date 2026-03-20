@@ -17,7 +17,7 @@ include { BUGTYPING } from './subworkflows/bugtyping.nf'
 workflow {
 
 	// QC and read preparation
-	QCREADS(params.input, params.qscore, params.trim_barcodes)
+	QCREADS(params.input, params.qscore, params.trim_adapters)
 
 	// Assembly subworkflow (uses QC reads and genome size)
 	ASSEMBLY(QCREADS.out.reads, params.gsize)
@@ -53,7 +53,7 @@ workflow {
 		ASSEMBLY.out.flye_info.collect(),
 		mlst.out.collect()
 	)
-	multiqc (QCREADS.out.read_stats)
+	multiqc (QCREADS.out.read_stats.collect())
 	versionfile = file("${baseDir}/software_version.tsv")
 	makelimsfile(BUGTYPING.out.sero.map {sample, sero -> sero }.collect(),BUGTYPING.out.vf.collect(),BUGTYPING.out.amr.collect(),mlst.out.collect(),versionfile)
 }

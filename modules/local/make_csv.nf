@@ -3,6 +3,7 @@
 // make csv file with headers from the given input
 
 process make_csv {
+	label "low"
 	publishDir "${params.out_dir}"
 	input:
 	path(fastq_input)

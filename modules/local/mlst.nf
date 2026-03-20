@@ -15,31 +15,29 @@ process mlst {
 	# Remove assembly suffix from sample name
 	sed -i 's,_assembly.fasta,,g' ${SampleName}_MLST.tsv
 
-	# Read first line
+	# Read first line and count fields (sample, scheme, ST + loci)
 	first_line=\$(head -n 1 ${SampleName}_MLST.tsv)
-
-	# Count number of columns
 	ncols=\$(echo "\$first_line" | awk '{print NF}')
 
-	# If only 3 columns → no MLST scheme available
-	if [[ "\$ncols" -le 3 ]]; then
-
-		# Insert minimal header
-		sed -i '1i\\SAMPLE\tSCHEME\tST' ${SampleName}_MLST.tsv
-		sed -i 's/-\t-/No_MLST_scheme_available\tNA/g' ${SampleName}_MLST.tsv
-
-	else
-
-		# Build dynamic header
-		header="SAMPLE\tSCHEME\tST"
-
-		for field in \$(echo "\$first_line" | cut -f4-); do
-			gene=\${field%%(*}
-			header="\${header}\t\${gene}"
+	# Build a generic header that works across species with different locus counts
+	header="SAMPLE\tSCHEME\tST"
+	
+	if [[ "\$ncols" -gt 3 ]]; then
+		for ((i=1; i<=ncols-3; i++)); do
+			header+="\tLOCUS\${i}"
 		done
-
 		sed -i "1i\${header}" ${SampleName}_MLST.tsv
+	fi
 
+	# If MLST has no scheme hit, keep a consistent, import-friendly structure
+	if [[ "\$ncols" -le 3 ]]; then
+		header+="\tLOCUS1\tLOCUS2\tLOCUS3\tLOCUS4\tLOCUS5\tLOCUS6\tLOCUS7"
+		sed -i 's/-\t-/No_MLST_scheme_available\tNA\tNA\tNA\tNA\tNA\tNA\tNA\tNA/' ${SampleName}_MLST.tsv
+
+		# Prepend header row for downstream LIMS import
+		sed -i "1i\${header}" ${SampleName}_MLST.tsv
+	
+		
 	fi
 
 	"""
