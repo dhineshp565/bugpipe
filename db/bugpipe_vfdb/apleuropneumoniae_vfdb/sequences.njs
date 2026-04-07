@@ -6,9 +6,9 @@
   "description": "aplueropneumoniae_serodb",
   "number-of-letters": 46680,
   "number-of-sequences": 30,
-  "last-updated": "2026-04-07T08:26:00",
+  "last-updated": "2026-04-07T14:23:00",
   "number-of-volumes": 1,
-  "bytes-total": 54465,
+  "bytes-total": 54466,
   "bytes-to-cache": 12164,
   "files": [
     "sequences.ndb",
