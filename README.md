@@ -108,17 +108,17 @@ Results/
 The following bacterial species are supported for serotype detection:
 
 | Species | Serotype Database | Database Source |
-|---------|-------------------|-----------------|---------------|
+|---------|-------------------|-----------------|
 | *Glaesserella parasuis* | gparasuis_serodb | [Howell et al 2015](https://doi.org/10.1128/jcm.01991-15) |
-| *Streptococcus suis* | ssuis_serodb | [Athey et al 2016](https://doi.org/10.1186/s12866-016-0782-8) | 
+| *Streptococcus suis* | ssuis_serodb | [Athey et al 2016](https://doi.org/10.1186/s12866-016-0782-8) |
 | *Mannheimia haemolytica* | mhaemolytica_serodb | [Iguchi et al 2025](https://doi.org/10.1038/s41598-025-97176-z) |
 | *Escherichia coli* | EcOH | [ABRicate built-in DB](https://github.com/tseemann/abricate) |
 | *Klebsiella aerogenes* | kaerogenes_serodb | [K-antigen](https://doi.org/10.1016/j.celrep.2024.114602); [O-antigen](https://doi.org/10.1038/s41598-020-73360-1) |
 | *Klebsiella pneumoniae* | Kaptive (kpsc_k, kpsc_o) | [Kaptive](https://kaptive-web.erc.monash.edu/) |
 | *Salmonella* | SISTR | [Yoshida et al 2016](https://doi.org/10.1371/journal.pone.0147101) |
-| *Staphylococcus aureus* | saureus_serodb | cap-5 and cap-8 only | 
-| *Histophilus somni* | None | N/A | [pubMLST](https://pubmlst.org/) |
-| *Staphylococcus aureus* | apleuropneumoniae_serodb | [Angen et al 2025](https://doi.org/10.1099/mgen.0.001434)|
+| *Staphylococcus aureus* | saureus_serodb | cap-5 and cap-8 only |
+| *Histophilus somni* | None | None |
+| *Actinobacillus pleuropneumoniae* | apleuropneumoniae_serodb | [Angen et al 2025](https://doi.org/10.1099/mgen.0.001434) |
 
 ## Tools and References
 
