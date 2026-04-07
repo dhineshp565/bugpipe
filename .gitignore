@@ -8,6 +8,7 @@ report*.html
 dag*.html
 .nextflow.log
 
+
 # outputs
 *.html
 
@@ -16,3 +17,5 @@ dag*.html
 .DS_Store
 Thumbs.db
 settings.json
+.nextflow/history
+

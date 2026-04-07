@@ -51,7 +51,8 @@ process serotype_salmonella {
     tuple val(SampleName), path(assembly),path(serofile)
 
     output:
-    tuple val(SampleName), path("${SampleName}_serotype.tsv")
+    tuple val(SampleName), path("${SampleName}_serotype.tsv"),emit:sistr_formatted
+    tuple val(SampleName), path("${SampleName}_sistr.csv"),emit:sistr_raw
 
     script:
     """
@@ -136,7 +137,7 @@ workflow BUGTYPING {
         serotype_kpneumoniae (ch_kpneumoniae)
 
      ch_serotype = serotype_ssuis.out
-        .mix(serotype_salmonella.out, serotype_kpneumoniae.out[0])
+        .mix(serotype_salmonella.out.sistr_formatted, serotype_kpneumoniae.out[0])
         .mix(
             // Fallback for unknown species: just pass through abricate sero
             ch_serotyping_in

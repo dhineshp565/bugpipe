@@ -79,29 +79,13 @@ Results/
 
 ### System Dependencies
 - [Nextflow](https://www.nextflow.io/) (≥21.0)
-- [Docker](https://www.docker.com/) or [Singularity](https://sylabs.io/singularity/)
+- [Docker](https://www.docker.com/)
 - Linux/Unix environment (WSL2 for Windows)
 
 ### Hardware Recommendations
 - Minimum 8 GB RAM
 - Multiple CPU cores recommended for parallel processing
 
-## Installation
-
-1. **Install Nextflow:**
-   ```bash
-   curl -s https://get.nextflow.io | bash
-   sudo mv nextflow /usr/local/bin/
-   ```
-
-2. **Install Docker:**
-   Follow the [official Docker installation guide](https://docs.docker.com/get-docker/)
-
-3. **Clone the pipeline:**
-   ```bash
-   git clone https://github.com/dhineshp565/bugpipe.git
-   cd bugpipe
-   ```
 
 ## Pipeline Workflow
 
@@ -112,10 +96,10 @@ Results/
 5. **Quality Assessment:** Completeness evaluation with BUSCO
 6. **Typing & Annotation:**
    - Species identification (rMLST)
-   - MLST typing ([MLST](https://github.com/tseemann/mlst))
+   - MLST typing ([MLST](https://github.com/tseemann/mlst) and [PubMLST](https://pubmlst.org/))
    - AMR gene detection (Abricate + [CARD](https://card.mcmaster.ca/home))
-   - Virulence factor detection (Abricate + [VFDB](https://www.mgc.ac.cn/VFs/main.htm) or custom database)
-   - Serotype detection (species-specific databases, plus [SISTR](https://github.com/phac-nml/sistr_cmd) for Salmonella and [Kaptive](https://github.com/klebgenomics/Kaptive) for Klebsiella)
+   - Virulence factor detection (Abricate + [VFDB](https://www.mgc.ac.cn/VFs/main.htm) or Species-specific custom database)
+   - Serotype detection (Abricate + Species-specific databases, plus [SISTR](https://github.com/phac-nml/sistr_cmd) for Salmonella and [Kaptive](https://github.com/klebgenomics/Kaptive) for Klebsiella)
 7. **Annotation:** Optional genome annotation using Bakta
 8. **Reporting:** Automated HTML report generation
 
@@ -123,17 +107,18 @@ Results/
 
 The following bacterial species are supported for serotype detection:
 
-| Species | Serotype Database | Database Source | MLST Database |
+| Species | Serotype Database | Database Source |
 |---------|-------------------|-----------------|---------------|
-| *Glaesserella parasuis* | gparasuis_serodb | [Howell et al 2015](https://doi.org/10.1128/jcm.01991-15) | [pubMLST](https://pubmlst.org/) |
-| *Streptococcus suis* | ssuis_serodb | [Athey et al 2016](https://doi.org/10.1186/s12866-016-0782-8) | [pubMLST](https://pubmlst.org/) |
-| *Mannheimia haemolytica* | mhaemolytica_serodb | [Iguchi et al 2025](https://doi.org/10.1038/s41598-025-97176-z) | [pubMLST](https://pubmlst.org/) |
-| *Escherichia coli* | EcOH | [ABRicate built-in DB](https://github.com/tseemann/abricate) | [pubMLST](https://pubmlst.org/) |
-| *Klebsiella aerogenes* | kaerogenes_serodb | [K-antigen](https://doi.org/10.1016/j.celrep.2024.114602); [O-antigen](https://doi.org/10.1038/s41598-020-73360-1) | [pubMLST](https://pubmlst.org/) |
-| *Klebsiella pneumoniae* | Kaptive (kpsc_k, kpsc_o) | [Kaptive](https://kaptive-web.erc.monash.edu/) | [pubMLST](https://pubmlst.org/) |
-| *Salmonella* | SISTR | [Yoshida et al 2016](https://doi.org/10.1371/journal.pone.0147101) | [pubMLST](https://pubmlst.org/) |
-| *Staphylococcus aureus* | saureus_serodb | cap-5 and cap-8 only | [pubMLST](https://pubmlst.org/) |
+| *Glaesserella parasuis* | gparasuis_serodb | [Howell et al 2015](https://doi.org/10.1128/jcm.01991-15) |
+| *Streptococcus suis* | ssuis_serodb | [Athey et al 2016](https://doi.org/10.1186/s12866-016-0782-8) | 
+| *Mannheimia haemolytica* | mhaemolytica_serodb | [Iguchi et al 2025](https://doi.org/10.1038/s41598-025-97176-z) |
+| *Escherichia coli* | EcOH | [ABRicate built-in DB](https://github.com/tseemann/abricate) |
+| *Klebsiella aerogenes* | kaerogenes_serodb | [K-antigen](https://doi.org/10.1016/j.celrep.2024.114602); [O-antigen](https://doi.org/10.1038/s41598-020-73360-1) |
+| *Klebsiella pneumoniae* | Kaptive (kpsc_k, kpsc_o) | [Kaptive](https://kaptive-web.erc.monash.edu/) |
+| *Salmonella* | SISTR | [Yoshida et al 2016](https://doi.org/10.1371/journal.pone.0147101) |
+| *Staphylococcus aureus* | saureus_serodb | cap-5 and cap-8 only | 
 | *Histophilus somni* | None | N/A | [pubMLST](https://pubmlst.org/) |
+| *Staphylococcus aureus* | apleuropneumoniae_serodb | [Angen et al 2025](https://doi.org/10.1099/mgen.0.001434)|
 
 ## Tools and References
 
