@@ -119,6 +119,7 @@ The following bacterial species are supported for serotype detection:
 | *Staphylococcus aureus* | saureus_serodb | cap-5 and cap-8 only |
 | *Histophilus somni* | None | None |
 | *Actinobacillus pleuropneumoniae* | apleuropneumoniae_serodb | [Angen et al 2025](https://doi.org/10.1099/mgen.0.001434) |
+| *Pasteurella multocida* | pmultocida_serodb | [Townsend et al 2025](https://doi.org/10.1128/jcm.39.3.924-929.2001) |
 
 ## Tools and References
 
