@@ -7,4 +7,4 @@ Klebsiella aerogenes	kaerogenes_serodb	custom	vfdb	builtin
 Staphylococcus aureus	saureus_serodb	custom	vfdb	builtin
 Histophilus somni	None	None	hsomni_vfdb	custom
 Actinobacillus pleuropneumoniae	apleuropneumoniae_serodb	custom	apleuropneumoniae_vfdb	custom
-Pasteurella multocida   pmultocida_serodb   custom  vfdb    builtin
+Pasteurella multocida	pmultocida_serodb 	custom	vfdb	builtin
