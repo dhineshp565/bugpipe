@@ -6,9 +6,9 @@
   "description": "culcerans_vfdb",
   "number-of-letters": 24714,
   "number-of-sequences": 15,
-  "last-updated": "2026-08-25T08:24:00",
+  "last-updated": "2026-08-25T13:01:00",
   "number-of-volumes": 1,
-  "bytes-total": 46887,
+  "bytes-total": 46216,
   "bytes-to-cache": 6467,
   "files": [
     "sequences.ndb",
