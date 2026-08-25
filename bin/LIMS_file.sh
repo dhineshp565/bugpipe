@@ -34,10 +34,14 @@ datetime=$(date +"%d%b%Y_%H-%M-%S")
 
 
 # Extract data from *_res.tsv files and save as ${datetime}_LIMS_file.tsv
-awk 'FNR==1 && NR!=1 { while (/^#F/) getline; } 1 {print}' *_res.tsv > bugpipe_LIMS_file.tsv
+awk 'FNR==1 && NR!=1 { while (/^#F/) getline; } 1 {print}' *_res.tsv > concat_LIMS_file.tsv
+# Replace _ with space in the last column
+awk -F'\t' 'BEGIN{OFS="\t"} { gsub(/_/, " ", $(NF-1)); print }' concat_LIMS_file.tsv > bugpipe_LIMS_file.tsv
 
 cat software_version.tsv bugpipe_LIMS_file.tsv >> bugpipe_LIMS_file_${datetime}.tsv
 
+
 # Replace "#FILE" with "ID" in ${datetime}_LIMS_file.tsv
 sed -i 's,#FILE,ID,g' bugpipe_LIMS_file_${datetime}.tsv
+
 
