@@ -23,6 +23,13 @@
                     "description": "Path to input directory containing sub-directories with fastq files",
                     "fa_icon": "fas fa-folder-open"
                 },
+                "fasta": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "exists": true,
+                    "description": "No need to provide input fastq files if this is set. Path to FASTA file or directory containing FASTA files. When provided, QC and assembly steps are skipped.",
+                    "fa_icon": "fas fa-folder-open"
+                },
                 "out_dir": {
                     "type": "string",
                     "fa_icon": "fas fa-folder-open",
@@ -40,9 +47,10 @@
             "properties": {
                 "fasta": {
                     "type": "string",
-                    "default": null,
+                    "format": "directory-path",
+                    "exists": true,
                     "description": "Path to FASTA file or directory containing FASTA files. When provided, QC and assembly steps are skipped.",
-                    "format": "file-path"
+                    "fa_icon": "fas fa-folder-open"
                 },
                 "trim_adapters": {
                    "type": "boolean",
