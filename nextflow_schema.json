@@ -38,6 +38,12 @@
             "description": "",
             "default": "",
             "properties": {
+                "fasta": {
+                    "type": "string",
+                    "default": null,
+                    "description": "Path to FASTA file or directory containing FASTA files. When provided, QC and assembly steps are skipped.",
+                    "format": "file-path"
+                },
                 "trim_adapters": {
                    "type": "boolean",
                     "default": false,

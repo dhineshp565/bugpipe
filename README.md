@@ -2,27 +2,42 @@
 
 A comprehensive Nextflow pipeline for whole genome assembly and analysis of bacterial isolates using Oxford Nanopore sequencing data. This pipeline can also be used for fungal isolates for genome assembly, completeness estimation, and optional genome annotation.
 
+**New:** BugPipe now supports pre-assembled FASTA files as input, allowing you to skip QC and assembly steps and proceed directly to typing and annotation.
+
 ## Overview
 
 BugPipe performs complete bacterial genome analysis including:
-- Genome assembly and polishing
+- Quality control and read filtering (FASTQ mode)
+- Genome assembly and polishing (FASTQ mode)
 - Species identification
 - Multi-locus sequence typing (MLST)
 - Antimicrobial resistance (AMR) gene detection
 - Virulence factor identification
 - Assembly quality assessment
+- Optional genome annotation
 - Automated HTML report generation
+
+**Two Input Modes:**
+- **FASTQ Mode (Default):** Complete workflow from raw reads to typed assemblies
+- **FASTA Mode:** Skip QC and assembly, start from pre-assembled genomes
 
 ## Quick Start
 
-### Basic Usage
+### Basic Usage (FASTQ Input)
 ```bash
-nextflow run main.nf --input samples/fastq --out_dir Results --profile docker
+nextflow run main.nf --input samples/fastq --out_dir Results 
 ```
 
 ### With Barcode Trimming
 ```bash
-nextflow run main.nf --input samples/fastq --out_dir Results --profile docker --trim_adapters true
+nextflow run main.nf --input samples/fastq --out_dir Results --trim_adapters true
+```
+
+### FASTA Input (Skip QC and Assembly)
+```bash
+
+# Directory with multiple FASTA files
+nextflow run main.nf --fasta assemblies/ --out_dir Results 
 ```
 
 ## Parameters
@@ -30,22 +45,25 @@ nextflow run main.nf --input samples/fastq --out_dir Results --profile docker --
 ### Required Parameters
 | Parameter | Description |
 |-----------|-------------|
-| `--input` | Input directory containing subdirectories with FASTQ files |
+| `--input` | Input directory containing subdirectories with FASTQ files (required for FASTQ mode) |
+| `--fasta` | Path to FASTA file or directory with FASTA files (required for FASTA mode) |
 | `--out_dir` | Output directory for results |
+
+**Note:** Use either `--input` (for FASTQ mode) or `--fasta` (for FASTA mode), not both.
 
 ### Optional Parameters
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `--qscore` | 10 | Minimum read quality score threshold for filtering |
-| `--trim_adapters` | false | Set to `true` to enable barcode and adapter trimming |
-| `--medaka_model` | bacteria | Basecalling model for genome polishing |
-| `--gsize` | auto | Estimated genome size (e.g., 3.5M, 3.5G, 3.5k) |
+| `--qscore` | 10 | Minimum read quality score threshold for filtering (FASTQ mode only) |
+| `--trim_adapters` | false | Set to `true` to enable barcode and adapter trimming (FASTQ mode only) |
+| `--medaka_model` | bacteria | Basecalling model for genome polishing (FASTQ mode only) |
+| `--gsize` | auto | Estimated genome size (e.g., 3.5M, 3.5G, 3.5k) (FASTQ mode only) |
 | `--lineage` | bacteria_odb10 | BUSCO lineage for completeness assessment |
 | `--annotate` | false | Enable genome annotation using Bakta |
 | `--bakta_db` | /data/referenceDB/bakta_db/bakta_db-light | Path to Bakta database directory |
 
 ## Input Structure
-
+### FASTQ Input (Default Mode)
 Your input directory should be organized as follows:
 ```
 input_directory/
@@ -58,18 +76,33 @@ input_directory/
 └── ...
 ```
 
+### FASTA Input (Skip QC and Assembly)
+Provide either:
+- A directory containing FASTA files: `--fasta assemblies/`
+
+Supported FASTA file extensions: `.fasta`, `.fa`, `.fna`, `.fasta.gz`, `.fa.gz`, `.fna.gz`
+
+```
+assemblies/
+├── sample1.fasta
+├── sample2.fasta
+└── ...
+```
+
+**Note:** When using FASTA input, the pipeline skips QC and assembly steps and proceeds directly to typing and annotation.
+
 ## Output Structure
 
 The pipeline generates the following outputs:
 ```
 Results/
-├── assemblies/         # Final polished assemblies
+├── assemblies/         # Final polished assemblies (FASTQ mode only)
 ├── mlst/               # MLST typing results
 ├── abricate/           # AMR and virulence factor results
 ├── serotype/           # Serotype refinement outputs (SISTR/Kaptive/S. suis refinement)
 ├── speciesID/          # Species identification
 ├── busco/              # Assembly quality metrics
-├── multiqc/            # MultiQC report and data
+├── multiqc/            # MultiQC report and data (FASTQ mode only)
 ├── bakta/              # Optional Bakta annotation outputs
 ├── LIMS/               # LIMS-formatted files
 └── WGS_results_*.html  # Summary report
@@ -86,9 +119,9 @@ Results/
 - Minimum 8 GB RAM
 - Multiple CPU cores recommended for parallel processing
 
-
 ## Pipeline Workflow
 
+### FASTQ Mode (Default)
 1. **Input Processing:** Merges FASTQ files per sample
 2. **Quality Control:** Optional barcode/adapter trimming with Porechop
 3. **Assembly:** Genome assembly using Dragonflye (Flye)
@@ -102,6 +135,18 @@ Results/
    - Serotype detection (Abricate + Species-specific databases, plus [SISTR](https://github.com/phac-nml/sistr_cmd) for Salmonella and [Kaptive](https://github.com/klebgenomics/Kaptive) for Klebsiella)
 7. **Annotation:** Optional genome annotation using Bakta
 8. **Reporting:** Automated HTML report generation
+
+### FASTA Mode (Skip QC and Assembly)
+1. **Input Processing:** Load FASTA files (single file or directory)
+2. **Quality Assessment:** Completeness evaluation with BUSCO
+3. **Typing & Annotation:**
+   - Species identification (rMLST)
+   - MLST typing ([MLST](https://github.com/tseemann/mlst) and [PubMLST](https://pubmlst.org/))
+   - AMR gene detection (Abricate + [CARD](https://card.mcmaster.ca/home))
+   - Virulence factor detection (Abricate + [VFDB](https://www.mgc.ac.cn/VFs/main.htm) or Species-specific custom database)
+   - Serotype detection (Abricate + Species-specific databases, plus [SISTR](https://github.com/phac-nml/sistr_cmd) for Salmonella and [Kaptive](https://github.com/klebgenomics/Kaptive) for Klebsiella)
+4. **Annotation:** Optional genome annotation using Bakta
+5. **Reporting:** Automated HTML report generation
 
 ## Supported Bacteria for Serotyping
 
@@ -119,7 +164,7 @@ The following bacterial species are supported for serotype detection:
 | *Staphylococcus aureus* | saureus_serodb | cap-5 and cap-8 only |
 | *Histophilus somni* | None | None |
 | *Actinobacillus pleuropneumoniae* | apleuropneumoniae_serodb | [Angen et al 2025](https://doi.org/10.1099/mgen.0.001434) |
-| *Pasteurella multocida* | pmultocida_serodb | [Townsend et al 2025](https://doi.org/10.1128/jcm.39.3.924-929.2001) |
+| *Pasteurella multocida* | pmultocida_serodb (sergroup and LPS reliable) (serovar level -not fully validated) | [Townsend et al 2025](https://doi.org/10.1128/jcm.39.3.924-929.2001) [Harper et al 2015] (https://doi.org/10.1128/jcm.02824-14)|
 
 ## Tools and References
 
