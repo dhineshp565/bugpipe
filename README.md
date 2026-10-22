@@ -61,6 +61,7 @@ nextflow run main.nf --fasta assemblies/ --out_dir Results
 | `--lineage` | bacteria_odb10 | BUSCO lineage for completeness assessment |
 | `--annotate` | false | Enable genome annotation using Bakta |
 | `--bakta_db` | /data/referenceDB/bakta_db/bakta_db-light | Path to Bakta database directory |
+| `--assembler` | autocycler or dragonflye (default: autocycler) |
 
 ## Input Structure
 ### FASTQ Input (Default Mode)
@@ -189,6 +190,6 @@ The following bacterial species are supported for serotype detection:
 | [Bakta](https://github.com/oschwartz10612/bakta) | Genome annotation | https://github.com/oschwartz10612/bakta | Schwartz et al. |
 | [rMLST API](https://pubmlst.org/species-id) | Species identification | https://pubmlst.org/species-id | Jolley & Maiden, 2010 |
 | [PubMLST](https://pubmlst.org/) | MLST database repository | https://pubmlst.org/ | Maiden, M.C. et al. |
-
+| [autocycler](https://github.com/rrwick/Autocycler/) | Genome Assembly | https://github.com/rrwick/Autocycler | Wick et al. 2025 |
 
 

@@ -14,11 +14,23 @@ include { ASSEMBLY } from './subworkflows/assembly.nf'
 include { BUGTYPING } from './subworkflows/bugtyping.nf'
 include { make_report_fastamode } from './modules/local/make_report_fastamode.nf'
 
+process makecsv_fasta {
+    input:
+    path(fasta_dir)
+
+    output:
+    path ("samplelist.csv")
+
+    script:
+    """
+    makecsv_fasta.sh "${fasta_dir}"
+    """
+}
+
 
 
 
 workflow {
-    
 
     // Check if FASTA input is provided
     if (params.fasta) {
