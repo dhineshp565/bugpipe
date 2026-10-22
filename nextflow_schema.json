@@ -77,6 +77,12 @@
           "default": "/data/referenceDB/bakta_db/bakta_db-light",
           "description": "Path to Bakta database directory",
           "format": "directory-path"
+        },
+        "assembler": {
+          "type": "string",
+          "default": "autocycler",
+          "enum": ["dragonflye", "autocycler"],
+          "description": "Assembly tool to use: 'dragonflye' or 'autocycler'"
         }
       }
     }

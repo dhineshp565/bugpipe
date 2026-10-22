@@ -1,0 +1,903 @@
+#!/usr/bin/env python3
+"""
+This pipeline builds both Flye and Autocycler assemblies. It uses Autocycler when it was
+successful, otherwise falling back to Flye.
+
+Usage:
+    autocycler_and_flye.py [options] <reads.fastq[.gz]|reads.bam> <out_dir>
+    autocycler_and_flye.py --help
+
+Copyright 2026 Ryan Wick (rrwick@gmail.com)
+https://github.com/rrwick/Autocycler
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program. If not,
+see <https://www.gnu.org/licenses/>.
+"""
+
+import argparse
+import csv
+import gzip
+import logging
+import math
+import os
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+logger = logging.getLogger('autocycler_and_flye')
+
+AUTOCYCLER_ASSEMBLERS = ('plassembler', 'raven', 'myloasm', 'miniasm', 'flye', 'metamdbg')
+
+DEPENDENCIES = ('autocycler', 'flye', 'metaMDBG', 'miniasm', 'minimap2', 'minipolish',
+                'myloasm', 'nice', 'parallel', 'plassembler', 'racon', 'rasusa', 'raven',
+                'samtools')
+
+
+def get_arguments(args):
+    parser = argparse.ArgumentParser(description='Fast Autocycler with Flye fallback',
+                                     add_help=False,
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    required_args = parser.add_argument_group('Positional arguments')
+    required_args.add_argument('reads', type=str,
+                               help='Read FASTQ file (can be gzipped) or uBAM file')
+    required_args.add_argument('out_dir', type=str,
+                               help='Directory for working files and final assembly (will be created)')
+
+    setting_args = parser.add_argument_group('Settings')
+    setting_args.add_argument('--read_type',
+                              choices=('ont_r9', 'ont_r10', 'pacbio_clr', 'pacbio_hifi'),
+                              default='ont_r10',
+                              help='Type of long reads')
+    setting_args.add_argument('--genome_size', type=int,
+                              help='Genome size in bp (skips estimation when supplied)')
+    setting_args.add_argument('--min_size_ratio', type=float, default=0.75,
+                              help='Reject Autocycler assemblies smaller than this multiple of genome size')
+    setting_args.add_argument('--max_size_ratio', type=float, default=1.25,
+                              help='Reject Autocycler assemblies larger than this multiple of genome size')
+    setting_args.add_argument('--seed', type=int, default=0,
+                              help='Random seed for reproducible read subsampling')
+    setting_args.add_argument('--subset_count', type=int, default=2,
+                              help='Number of Autocycler read subsets')
+
+    resources_args = parser.add_argument_group('Resources')
+    resources_args.add_argument('--threads', type=int, default=16,
+                                help='Maximum number of CPU threads')
+    resources_args.add_argument('--jobs', type=int, default=4,
+                                help='Number of simultaneous Autocycler input assembly jobs')
+    resources_args.add_argument('--max_job_time', type=str, default='4h',
+                                help='Maximum runtime for each Autocycler input assembly job')
+
+    output_args = parser.add_argument_group('Output')
+    output_args.add_argument('--clean', type=int, choices=range(4), default=2,
+                             help='Cleanup level from 0 (keep everything) to 3 '
+                                  '(keep only final assembly and logs)')
+
+    help_args = parser.add_argument_group('Help')
+    help_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
+                           help='Show this help message and exit')
+
+    args = parser.parse_args(args)
+    return args
+
+
+def main(args=None):
+    args = get_arguments(args)
+    check_args(args)
+    check_dependencies()
+    out_dir = create_output_dir(args.out_dir)
+    configure_logging(out_dir)
+    reads = convert_bam_to_fastq(args.reads, out_dir)
+    input_read_stats = get_fastq_stats(reads)
+    logger.info(format_read_stats('Input reads', input_read_stats))
+    if args.genome_size is None:
+        genome_size = estimate_genome_size_with_raven(reads, out_dir, args.threads)
+    else:
+        genome_size = args.genome_size
+        logger.info(f'Genome size: {genome_size:,} bp (user-supplied)')
+    logger.info(f'Estimated read depth: {input_read_stats[1] / genome_size:.1f}×')
+    try:
+        rasusa_reads = subsample_with_rasusa(reads, out_dir, genome_size, input_read_stats[1],
+                                             args.seed)
+        flye_fasta = flye_assembly(rasusa_reads, out_dir, args.threads, args.read_type)
+        report_flye_assembly_size(flye_fasta, genome_size,
+                                  args.min_size_ratio, args.max_size_ratio)
+        autocycler_fasta = autocycler_assembly(reads, flye_fasta, out_dir, genome_size,
+                                               args.threads, args.jobs, args.subset_count,
+                                               args.max_job_time, args.seed, args.read_type)
+        create_autocycler_metrics(args.reads, out_dir)
+        autocycler_successful = check_autocycler_assembly(autocycler_fasta, out_dir, genome_size,
+                                                          args.min_size_ratio, args.max_size_ratio)
+        assembler = create_final_assembly(out_dir, flye_fasta, autocycler_fasta,
+                                          autocycler_successful)
+        create_plassembler_summary(out_dir, assembler, args.threads)
+
+    finally:
+        clean_up(out_dir, args.clean)
+
+
+def check_args(args):
+    if args.threads < 1:
+        quit_with_error('--threads must be at least 1')
+    if args.threads > 100:
+        quit_with_error('--threads cannot be greater than 100')
+    if args.jobs < 1:
+        quit_with_error('--jobs must be at least 1')
+    if args.jobs > args.threads:
+        quit_with_error('--jobs cannot be greater than --threads')
+    if args.subset_count < 2:
+        quit_with_error('--subset_count must be at least 2')
+    if args.seed < 0:
+        quit_with_error('--seed must be at least 0')
+    if args.genome_size is not None and args.genome_size < 1:
+        quit_with_error('--genome_size must be at least 1')
+    if args.min_size_ratio <= 0:
+        quit_with_error('--min_size_ratio must be greater than 0')
+    if args.max_size_ratio < args.min_size_ratio:
+        quit_with_error('--max_size_ratio must be greater than or equal to --min_size_ratio')
+    if Path(args.out_dir).exists():
+        quit_with_error(f"output directory already exists: '{args.out_dir}'")
+
+
+def check_dependencies():
+    missing = [dependency for dependency in DEPENDENCIES if shutil.which(dependency) is None]
+    if missing:
+        missing_list = '\n'.join(f'  {dependency}' for dependency in missing)
+        quit_with_error(f'the following required dependencies were not found in PATH:\n'
+                        f'{missing_list}')
+
+
+def create_output_dir(out_dir):
+    out_dir = Path(out_dir).resolve()
+    try:
+        out_dir.mkdir(parents=True)
+    except OSError as error:
+        quit_with_error(f"could not create output directory '{out_dir}': {error}")
+    return out_dir
+
+
+def configure_logging(out_dir):
+    (out_dir / 'logs').mkdir()
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter('%(message)s'))
+    log_file = out_dir / 'assembly.log'
+    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler.setFormatter(logging.Formatter('%(asctime)s  %(message)s',
+                                                datefmt='%Y-%m-%d %H:%M:%S'))
+    for handler in logger.handlers:
+        handler.close()
+    logger.handlers.clear()
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+
+
+def convert_bam_to_fastq(reads, out_dir):
+    try:
+        with gzip.open(reads, 'rb') as f:
+            if f.read(4) != b'BAM\x01':
+                return reads
+    except (OSError, EOFError):
+        return reads
+    logger.info('Converting BAM to FASTQ')
+    fastq = out_dir / 'input_reads.fastq'
+    samtools_log = out_dir / 'logs' / 'samtools.log'
+    with fastq.open('wb') as out, samtools_log.open('wb') as log:
+        result = subprocess.run(['samtools', 'fastq', reads], stdout=out, stderr=log)
+    if result.returncode != 0 or fastq.stat().st_size == 0:
+        quit_with_error(f"samtools fastq failed (see '{samtools_log}')")
+    return fastq
+
+
+def estimate_genome_size_with_raven(reads, out_dir, threads):
+    logger.info('Genome size estimation started')
+    command = ['autocycler', 'helper', 'genome_size', '--reads', reads, '--threads', threads]
+    raven_log = out_dir / 'logs' / 'raven_genome_size.log'
+    result = run_command(command, capture_stdout=True, check=False, output_log=raven_log)
+    if result.returncode != 0:
+        quit_with_error(f"Raven genome size estimation failed (see '{raven_log}')")
+    try:
+        genome_size = int(result.stdout.strip())
+    except (AttributeError, ValueError):
+        quit_with_error(f"could not parse Raven genome size estimate (see '{raven_log}')")
+    if genome_size < 1:
+        quit_with_error(f'Raven returned an invalid genome size estimate: {genome_size}')
+    logger.info(f'Estimated genome size: {genome_size:,} bp')
+    return genome_size
+
+
+def subsample_with_rasusa(reads, out_dir, genome_size, read_bases, seed):
+    read_depth = read_bases / genome_size
+    if read_bases <= genome_size * 100:
+        logger.info(f'Rasusa skipped: input read depth {read_depth:.1f}× is at or below 100×')
+        return Path(reads)
+    logger.info('Rasusa subsampling started')
+    rasusa_reads = out_dir / 'rasusa_reads.fastq.gz'
+    command = ['rasusa', 'reads', '--coverage', 100, '--genome-size', genome_size,
+               '--seed', seed, '--output', rasusa_reads, reads]
+    rasusa_log = out_dir / 'logs' / 'rasusa.log'
+    result = run_command(command, check=False, output_log=rasusa_log)
+    if result.returncode != 0:
+        quit_with_error(f"Rasusa failed (see '{rasusa_log}')")
+    if not rasusa_reads.is_file() or rasusa_reads.stat().st_size == 0:
+        quit_with_error(f"Rasusa did not create a non-empty output file (see '{rasusa_log}')")
+    subsampled_read_stats = get_fastq_stats(rasusa_reads)
+    logger.info(format_read_stats('Rasusa subsampling successful', subsampled_read_stats))
+    return rasusa_reads
+
+
+def flye_assembly(reads, out_dir, threads, read_type):
+    logger.info('Flye assembly started')
+    flye_read_flags = {'ont_r9': '--nano-raw', 'ont_r10': '--nano-hq',
+                       'pacbio_clr': '--pacbio-raw', 'pacbio_hifi': '--pacbio-hifi'}
+    try:
+        read_flag = flye_read_flags[read_type]
+    except KeyError:
+        quit_with_error(f"unsupported read type for Flye: '{read_type}'")
+    flye_out_dir = out_dir / 'flye'
+    flye_log = out_dir / 'logs' / 'flye.log'
+    command = ['flye', read_flag, reads, '--threads', threads, '--out-dir', flye_out_dir]
+    result = run_command(command, check=False, output_log=flye_log)
+    copy_flye_log(flye_out_dir / 'flye.log', flye_log)
+    if result.returncode != 0:
+        logger.warning(f"Warning: Flye exited with code {result.returncode} (see '{flye_log}')")
+    flye_fasta = flye_out_dir / 'assembly.fasta'
+    if not flye_fasta.is_file() or get_fasta_size(flye_fasta) == 0:
+        logger.warning(f"Warning: Flye produced no sequence (see '{flye_log}')")
+        return None
+    return flye_fasta
+
+
+def report_flye_assembly_size(flye_fasta, genome_size, min_size_ratio, max_size_ratio):
+    if flye_fasta is None:
+        return
+    assembly_size = get_fasta_size(flye_fasta)
+    size_ratio = assembly_size / genome_size
+    logger.info(f'Flye assembly: {assembly_size:,} bp ({size_ratio:.2f}× estimated genome size)')
+    if not min_size_ratio <= size_ratio <= max_size_ratio:
+        logger.warning('Warning: Flye assembly is outside the size limits')
+
+
+def copy_flye_log(source, destination):
+    try:
+        if not source.is_file() or source.stat().st_size == 0:
+            return
+        shutil.copy2(source, destination)
+    except OSError as error:
+        logger.warning(f"Warning: could not copy Flye log '{source}': {error}")
+
+
+def autocycler_assembly(reads, flye_fasta, out_dir, genome_size, threads, jobs, subset_count,
+                        max_job_time, seed, read_type):
+    logger.info('Autocycler assembly started')
+    assembly_job_count = len(AUTOCYCLER_ASSEMBLERS) * subset_count
+    parallel_jobs = min(jobs, assembly_job_count)
+    threads_per_job = threads // parallel_jobs
+    autocycler_dir = out_dir / 'autocycler'
+    subsampled_reads_dir = autocycler_dir / 'subsampled_reads'
+    assemblies_dir = autocycler_dir / 'assemblies'
+    autocycler_log = out_dir / 'logs' / 'autocycler.log'
+    try:
+        autocycler_log.touch()
+    except OSError as error:
+        logger.warning(f"Warning: could not create Autocycler log '{autocycler_log}': {error}")
+        return None
+
+    subsample_command = [
+        'autocycler', 'subsample',
+        '--reads', reads,
+        '--out_dir', subsampled_reads_dir,
+        '--genome_size', genome_size,
+        '--count', subset_count,
+        '--seed', seed,
+    ]
+    if run_autocycler_stage('subsample', subsample_command, autocycler_log) is None:
+        return None
+
+    try:
+        assemblies_dir.mkdir()
+        if flye_fasta is not None:
+            shutil.copy2(flye_fasta, assemblies_dir / 'flye_100x.fasta')
+    except OSError as error:
+        logger.warning(f'Warning: could not add the 100× Flye assembly to Autocycler: {error}')
+        return None
+
+    jobs_file = assemblies_dir / 'jobs.txt'
+    try:
+        write_autocycler_jobs(jobs_file, subsampled_reads_dir, assemblies_dir, genome_size,
+                              subset_count, threads_per_job, read_type)
+    except OSError as error:
+        logger.warning(f"Warning: could not write Autocycler job file '{jobs_file}': {error}")
+        return None
+    joblog = assemblies_dir / 'joblog.tsv'
+    parallel_command = [
+        'nice', '-n', 19,
+        'parallel',
+        '--jobs', parallel_jobs,
+        '--joblog', joblog,
+        '--results', assemblies_dir / 'logs',
+        '--timeout', max_job_time,
+        '::::', jobs_file,
+    ]
+    parallel_result = run_command(parallel_command, check=False)
+    failed_jobs = warn_about_failed_assembly_jobs(joblog, assembly_job_count)
+    if parallel_result.returncode != 0 and failed_jobs == 0:
+        logger.warning('Warning: one or more Autocycler input assembly jobs failed or timed '
+                       f'out (GNU Parallel exit code {parallel_result.returncode})')
+
+    weight_autocycler_input_assemblies(assemblies_dir)
+    input_assemblies = [fasta for fasta in assemblies_dir.glob('*.fasta')
+                        if fasta.is_file() and fasta.stat().st_size > 0]
+    expected_input_assemblies = assembly_job_count + (flye_fasta is not None)
+    logger.info(f'Autocycler input assemblies available: {len(input_assemblies)} of '
+                f'{expected_input_assemblies}')
+
+    compress_command = [
+        'autocycler', 'compress',
+        '--assemblies_dir', assemblies_dir,
+        '--autocycler_dir', autocycler_dir,
+        '--threads', threads,
+    ]
+    if run_autocycler_stage('compress', compress_command, autocycler_log) is None:
+        return None
+
+    cluster_command = [
+        'autocycler', 'cluster',
+        '--autocycler_dir', autocycler_dir,
+    ]
+    if run_autocycler_stage('cluster', cluster_command, autocycler_log) is None:
+        return None
+
+    cluster_dirs = sorted(path for path in
+                          (autocycler_dir / 'clustering' / 'qc_pass').glob('cluster_*')
+                          if path.is_dir())
+    if not cluster_dirs:
+        logger.warning('Warning: Autocycler produced no QC-pass clusters')
+        return None
+
+    for cluster_dir in cluster_dirs:
+        trim_command = [
+            'autocycler', 'trim',
+            '--cluster_dir', cluster_dir,
+            '--threads', threads,
+        ]
+        if run_autocycler_stage(f'trim ({cluster_dir.name})', trim_command,
+                                autocycler_log) is None:
+            return None
+
+        resolve_command = [
+            'autocycler', 'resolve',
+            '--cluster_dir', cluster_dir,
+        ]
+        if run_autocycler_stage(f'resolve ({cluster_dir.name})', resolve_command,
+                                autocycler_log) is None:
+            return None
+
+    final_gfas = [cluster_dir / '5_final.gfa' for cluster_dir in cluster_dirs]
+    missing_gfas = [gfa for gfa in final_gfas if not gfa.is_file() or gfa.stat().st_size == 0]
+    if missing_gfas:
+        logger.warning('Warning: Autocycler did not produce all expected final cluster graphs')
+        return None
+
+    combine_command = [
+        'autocycler', 'combine',
+        '--autocycler_dir', autocycler_dir,
+        '--in_gfas', *final_gfas,
+        '--reads', reads,
+        '--threads', threads,
+    ]
+    if run_autocycler_stage('combine', combine_command, autocycler_log) is None:
+        return None
+
+    autocycler_fasta = autocycler_dir / 'consensus_assembly.fasta'
+    if not autocycler_fasta.is_file() or autocycler_fasta.stat().st_size == 0:
+        logger.warning('Warning: Autocycler did not create a non-empty consensus assembly')
+        return None
+
+    return autocycler_fasta
+
+
+def check_autocycler_assembly(autocycler_fasta, out_dir, genome_size, min_size_ratio,
+                              max_size_ratio):
+    if autocycler_fasta is None:
+        logger.warning('Warning: Autocycler assembly unsuccessful: no assembly produced')
+        return False
+    assembly_size = get_fasta_size(autocycler_fasta)
+    size_ratio = assembly_size / genome_size
+    size_is_acceptable = min_size_ratio <= size_ratio <= max_size_ratio
+    fully_resolved = autocycler_completed_successfully(out_dir / 'logs' / 'autocycler.log')
+    message = f'{assembly_size:,} bp ({size_ratio:.2f}× estimated genome size)'
+    resolution = 'fully resolved' if fully_resolved else 'not fully resolved'
+    if size_is_acceptable and fully_resolved:
+        logger.info(f'Autocycler assembly successful: {message}; {resolution}')
+    else:
+        logger.warning(f'Warning: Autocycler assembly unsuccessful: {message}; {resolution}')
+    return size_is_acceptable and fully_resolved
+
+
+def autocycler_completed_successfully(autocycler_log):
+    autocycler_success_message = 'Consensus assembly is fully resolved 😄'
+    try:
+        return autocycler_success_message in autocycler_log.read_text(encoding='utf-8')
+    except (OSError, UnicodeError) as error:
+        logger.warning(f"Warning: could not read Autocycler log '{autocycler_log}': {error}")
+        return False
+
+
+def create_autocycler_metrics(reads, out_dir):
+    header_result = run_command(['autocycler', 'table'], capture_stdout=True, check=False)
+    row_result = run_command([
+        'autocycler', 'table',
+        '--autocycler_dir', out_dir / 'autocycler',
+        '--name', reads,
+    ], capture_stdout=True, check=False)
+
+    if header_result.returncode != 0 or row_result.returncode != 0:
+        logger.warning('Warning: could not create Autocycler metrics table')
+        return False
+
+    header = (header_result.stdout or '').rstrip('\r\n')
+    row = (row_result.stdout or '').rstrip('\r\n')
+    if not header or not row:
+        logger.warning('Warning: could not create Autocycler metrics table: empty table output')
+        return False
+
+    metrics_tsv = out_dir / 'autocycler' / 'metrics.tsv'
+    try:
+        metrics_tsv.write_text(f'{header}\n{row}\n', encoding='utf-8')
+    except OSError as error:
+        logger.warning(f"Warning: could not write Autocycler metrics table '{metrics_tsv}': "
+                       f'{error}')
+        return False
+
+    return True
+
+
+def create_final_assembly(out_dir, flye_fasta, autocycler_fasta, autocycler_successful):
+    if autocycler_successful:
+        assembler = 'Autocycler'
+        source_fasta = autocycler_fasta
+        source_gfa = out_dir / 'autocycler' / 'consensus_assembly.gfa'
+    elif flye_fasta is not None:
+        assembler = 'Flye'
+        source_fasta = flye_fasta
+        source_gfa = out_dir / 'flye' / 'assembly_graph.gfa'
+    else:
+        quit_with_error('Autocycler was unsuccessful and Flye produced no sequence')
+
+    try:
+        shutil.copy2(source_fasta, out_dir / 'assembly.fasta')
+    except OSError as error:
+        quit_with_error(f'could not copy final {assembler} assembly: {error}')
+    try:
+        if not source_gfa.is_file() or source_gfa.stat().st_size == 0:
+            raise OSError(f"missing or empty GFA: '{source_gfa}'")
+        shutil.copy2(source_gfa, out_dir / 'assembly.gfa')
+    except OSError as error:
+        logger.warning(f'Warning: could not copy final {assembler} graph: {error}')
+
+    logger.info(f'Final assembly: {assembler}')
+    return assembler
+
+
+def create_plassembler_summary(out_dir, assembler, threads):
+    summary = out_dir / 'plassembler_summary.tsv'
+    temp_summary = summary.with_suffix('.tsv.tmp')
+    try:
+        records = load_fasta_records(out_dir / 'assembly.fasta')
+        stats = get_final_contig_stats(records, assembler, out_dir)
+        with tempfile.TemporaryDirectory(prefix='plassembler_summary_') as temp:
+            temp = Path(temp)
+            input_fasta = temp / 'assembly.fasta'
+            plassembler_dir = temp / 'plassembler'
+            write_numbered_fasta(records, input_fasta)
+            result = run_command([
+                'plassembler', 'assembled',
+                '--no_copy_numbers',
+                '--database', find_plassembler_db(),
+                '--input_plasmids', input_fasta,
+                '--outdir', plassembler_dir,
+                '--prefix', 'plassembler',
+                '--threads', threads,
+                '--force',
+            ], check=False, output_log=out_dir / 'logs' / 'plassembler_summary.log')
+            if result.returncode != 0:
+                raise RuntimeError(f'Plassembler exited with code {result.returncode}')
+            fields, rows = read_plassembler_summary(plassembler_dir /
+                                                    'plassembler_summary.tsv', len(records))
+        write_plassembler_summary(temp_summary, records, stats, fields, rows)
+        temp_summary.replace(summary)
+    except (OSError, UnicodeError, ValueError, RuntimeError, csv.Error) as error:
+        temp_summary.unlink(missing_ok=True)
+        logger.warning(f'Warning: could not create Plassembler summary: {error}')
+        return False
+    logger.info('Plassembler summary created')
+    return True
+
+
+def find_plassembler_db():
+    if path := os.environ.get('PLASSEMBLER_DB'):
+        if (database := Path(path)).is_dir():
+            return database
+    if path := os.environ.get('CONDA_PREFIX'):
+        if (database := Path(path) / 'plassembler_db').is_dir():
+            return database
+    raise FileNotFoundError('no Plassembler database found; set PLASSEMBLER_DB or ensure '
+                            '$CONDA_PREFIX/plassembler_db exists')
+
+
+def load_fasta_records(fasta):
+    records = []
+    header = None
+    sequence = []
+    with fasta.open(encoding='utf-8') as fasta_file:
+        for line in fasta_file:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith('>'):
+                if header is not None:
+                    records.append((header.split()[0], header, ''.join(sequence)))
+                header, sequence = line[1:], []
+            elif header is None:
+                raise ValueError(f"sequence before first header in '{fasta}'")
+            else:
+                sequence.append(line)
+    if header is not None:
+        records.append((header.split()[0], header, ''.join(sequence)))
+    if not records or any(not sequence for _, _, sequence in records):
+        raise ValueError(f"empty FASTA record in '{fasta}'")
+    names = [name for name, _, _ in records]
+    if len(names) != len(set(names)):
+        raise ValueError(f"duplicate contig name in '{fasta}'")
+    return records
+
+
+def get_final_contig_stats(records, assembler, out_dir):
+    flye_info = load_flye_contig_info(out_dir / 'flye' / 'assembly_info.txt') \
+        if assembler == 'Flye' else {}
+    stats = []
+    for name, header, sequence in records:
+        if assembler == 'Flye':
+            depth, circularity = flye_info.get(name, (None, ''))
+        else:
+            depth = parse_float(get_header_value(header, 'depth'))
+            circularity = parse_circularity(get_header_value(header, 'circular'))
+        stats.append({'length': len(sequence), 'mean_depth': depth,
+                      'circularity': circularity})
+
+    base_depth = max(stats, key=lambda stat: stat['length'])['mean_depth']
+    if base_depth is None or base_depth <= 0:
+        logger.warning('Warning: final assembly copy numbers are unavailable because the longest '
+                       'contig has no positive depth')
+    for stat in stats:
+        depth = stat['mean_depth']
+        stat['copy_number'] = None if base_depth is None or base_depth <= 0 \
+            or depth is None else round(depth / base_depth, 2)
+    return stats
+
+
+def load_flye_contig_info(assembly_info):
+    info = {}
+    with assembly_info.open(encoding='utf-8') as info_file:
+        for line in info_file:
+            if line.startswith('#') or not line.strip():
+                continue
+            columns = line.rstrip('\r\n').split('\t')
+            if len(columns) >= 4:
+                info[columns[0]] = (parse_float(columns[2]),
+                                    'circular' if columns[3] == 'Y' else 'not_circular')
+    return info
+
+
+def get_header_value(header, key):
+    prefix = f'{key}='
+    return next((token[len(prefix):] for token in header.split()
+                 if token.lower().startswith(prefix)), None)
+
+
+def parse_float(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def parse_circularity(value):
+    if value is None:
+        return ''
+    return {'true': 'circular', 'false': 'not_circular'}.get(value.lower(), '')
+
+
+def write_numbered_fasta(records, fasta):
+    with fasta.open('w', encoding='utf-8') as fasta_file:
+        for number, (_, _, sequence) in enumerate(records, 1):
+            fasta_file.write(f'>{number}\n{sequence}\n')
+
+
+def read_plassembler_summary(summary, contig_count):
+    with summary.open(encoding='utf-8', newline='') as summary_file:
+        reader = csv.DictReader(summary_file, delimiter='\t')
+        if not reader.fieldnames or 'contig' not in reader.fieldnames:
+            raise ValueError(f"invalid Plassembler summary: '{summary}'")
+        rows = {row['contig']: row for row in reader}
+    expected = {str(number) for number in range(1, contig_count + 1)}
+    if set(rows) != expected:
+        raise ValueError('Plassembler summary contigs do not match the final assembly')
+    return reader.fieldnames, rows
+
+
+def write_plassembler_summary(summary, records, stats, plassembler_fields, plassembler_rows):
+    fields = ['contig', 'length', 'mean_depth', 'copy_number', 'circularity']
+    replaced_fields = {'mean_depth_long', 'plasmid_copy_number_long'}
+    fields += [field for field in plassembler_fields
+               if field not in fields and field not in replaced_fields]
+    with summary.open('w', encoding='utf-8', newline='') as summary_file:
+        writer = csv.DictWriter(summary_file, fields, delimiter='\t', lineterminator='\n')
+        writer.writeheader()
+        for number, ((name, _, _), stat) in enumerate(zip(records, stats), 1):
+            row = {field: plassembler_rows[str(number)].get(field, '') for field in fields}
+            row.update({key: '' if value is None else value for key, value in stat.items()})
+            row['contig'] = name
+            writer.writerow(row)
+
+
+def write_autocycler_jobs(jobs_file, subsampled_reads_dir, assemblies_dir, genome_size,
+                          subset_count, threads_per_job, read_type):
+    with jobs_file.open('w', encoding='utf-8') as jobs:
+        for assembler in AUTOCYCLER_ASSEMBLERS:
+            for sample_number in range(1, subset_count + 1):
+                sample = subsampled_reads_dir / f'sample_{sample_number:02d}.fastq'
+                out_prefix = assemblies_dir / f'{assembler}_{sample_number:02d}'
+                command = [
+                    'autocycler', 'helper', assembler,
+                    '--reads', sample,
+                    '--out_prefix', out_prefix,
+                    '--threads', threads_per_job,
+                    '--genome_size', genome_size,
+                    '--read_type', read_type,
+                    '--min_depth_rel', 0.1,
+                ]
+                jobs.write(f'{shlex.join(str(part) for part in command)}\n')
+
+
+def warn_about_failed_assembly_jobs(joblog, assembly_job_count):
+    if not joblog.is_file():
+        return 0
+
+    failed_jobs = []
+    try:
+        with joblog.open(encoding='utf-8', newline='') as joblog_file:
+            for row in csv.DictReader(joblog_file, delimiter='\t'):
+                if row.get('Exitval') != '0' or row.get('Signal') != '0':
+                    failed_jobs.append(row)
+    except (OSError, csv.Error) as error:
+        logger.warning(f"Warning: could not read GNU Parallel job log '{joblog}': {error}")
+        return 0
+
+    if failed_jobs:
+        logger.warning(f'Warning: {len(failed_jobs)} of {assembly_job_count} Autocycler input '
+                       'assembly jobs failed or timed out (see autocycler/assemblies/joblog.tsv and '
+                       'autocycler/assemblies/logs/)')
+    return len(failed_jobs)
+
+
+def weight_autocycler_input_assemblies(assemblies_dir):
+    for fasta in assemblies_dir.glob('plassembler*.fasta'):
+        add_fasta_header_attribute(fasta, 'Autocycler_cluster_weight=3',
+                                   required_text='circular=True')
+    for fasta in assemblies_dir.glob('flye*.fasta'):
+        add_fasta_header_attribute(fasta, 'Autocycler_consensus_weight=2')
+
+
+def add_fasta_header_attribute(fasta, attribute, required_text=None):
+    try:
+        text = fasta.read_text(encoding='utf-8')
+        if not text:
+            return
+        lines = text.splitlines()
+        changed = False
+        for i, line in enumerate(lines):
+            if (line.startswith('>') and attribute not in line
+                    and (required_text is None or required_text in line)):
+                lines[i] = f'{line} {attribute}'
+                changed = True
+        if changed:
+            fasta.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    except (OSError, UnicodeError) as error:
+        logger.warning(f"Warning: could not update FASTA headers in '{fasta}': {error}")
+
+
+def run_autocycler_stage(stage, command, autocycler_log):
+    result = run_command(command, check=False, output_log=autocycler_log, append_log=True)
+    if result.returncode != 0:
+        logger.warning(f'Warning: Autocycler {stage} failed with exit code '
+                       f'{result.returncode}')
+        return None
+    return result
+
+
+def get_fastq_stats(reads):
+    reads = Path(reads)
+    read_lengths = []
+    try:
+        if reads.suffix == '.gz':
+            fastq = gzip.open(reads, 'rt', encoding='utf-8')
+        else:
+            fastq = reads.open(encoding='utf-8')
+        with fastq:
+            while True:
+                header = fastq.readline()
+                if not header:
+                    break
+                record_number = len(read_lengths) + 1
+                if not header.startswith('@'):
+                    quit_with_error(f"malformed FASTQ '{reads}': record {record_number} does "
+                                    "not start with '@'")
+                sequence_length = 0
+                while True:
+                    line = fastq.readline()
+                    if not line:
+                        quit_with_error(f"truncated FASTQ '{reads}' in record {record_number}")
+                    if line.startswith('+'):
+                        break
+                    sequence_length += len(line.rstrip('\r\n'))
+                if sequence_length == 0:
+                    quit_with_error(f"malformed FASTQ '{reads}': record {record_number} has "
+                                    'an empty sequence')
+                quality_length = 0
+                while quality_length < sequence_length:
+                    line = fastq.readline()
+                    if not line:
+                        quit_with_error(f"truncated FASTQ '{reads}' in record {record_number}")
+                    quality_length += len(line.rstrip('\r\n'))
+                if quality_length != sequence_length:
+                    quit_with_error(f"malformed FASTQ '{reads}': sequence and quality lengths "
+                                    f'differ in record {record_number}')
+                read_lengths.append(sequence_length)
+    except (OSError, EOFError, UnicodeError) as error:
+        quit_with_error(f"could not read FASTQ '{reads}': {error}")
+
+    if not read_lengths:
+        quit_with_error(f"FASTQ contains no reads: '{reads}'")
+
+    total_bases = sum(read_lengths)
+    halfway = (total_bases + 1) // 2
+    cumulative_bases = 0
+    read_n50 = 0
+    for read_length in sorted(read_lengths, reverse=True):
+        cumulative_bases += read_length
+        if cumulative_bases >= halfway:
+            read_n50 = read_length
+            break
+
+    return len(read_lengths), total_bases, read_n50
+
+
+def format_read_stats(label, read_stats):
+    read_count, total_bases, read_n50 = read_stats
+    return f'{label}: {read_count:,} reads; {total_bases:,} bp; N50 {read_n50:,} bp'
+
+
+def get_fasta_size(fasta):
+    try:
+        with fasta.open(encoding='utf-8') as fasta_file:
+            size = sum(len(line.strip()) for line in fasta_file if not line.startswith('>'))
+    except (OSError, UnicodeError) as error:
+        logger.warning(f"Warning: could not read assembly FASTA '{fasta}': {error}")
+        return 0
+    return size
+
+
+def clean_up(out_dir, clean_level):
+    if clean_level >= 1:
+        clean_up_reads(out_dir)
+    if clean_level >= 2:
+        clean_up_working_directories(out_dir)
+    if clean_level >= 3:
+        clean_up_assembler_directories(out_dir)
+
+
+def clean_up_reads(out_dir):
+    rasusa_reads = out_dir / 'rasusa_reads.fastq.gz'
+    remove_path(rasusa_reads)
+    remove_path(out_dir / 'input_reads.fastq')
+    subsampled_reads_dir = out_dir / 'autocycler' / 'subsampled_reads'
+    for pattern in ('*.fastq', '*.fastq.gz', '*.fq', '*.fq.gz'):
+        for reads in subsampled_reads_dir.glob(pattern):
+            remove_path(reads)
+
+
+def clean_up_working_directories(out_dir):
+    flye_dir = out_dir / 'flye'
+    for directory in ['00-assembly', '10-consensus', '20-repeat', '30-contigger', '40-polishing']:
+        remove_path(flye_dir / directory)
+    autocycler_dir = out_dir / 'autocycler'
+    remove_path(autocycler_dir / 'subsampled_reads')
+    remove_path(autocycler_dir / 'assemblies')
+    remove_path(autocycler_dir / 'clustering')
+
+
+def clean_up_assembler_directories(out_dir):
+    remove_path(out_dir / 'autocycler')
+    remove_path(out_dir / 'flye')
+
+
+def remove_path(path):
+    try:
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        elif path.exists() or path.is_symlink():
+            path.unlink()
+    except OSError as error:
+        logger.warning(f"Warning: could not remove '{path}': {error}")
+
+
+def run_command(command, capture_stdout=False, check=True, output_log=None, append_log=False):
+    command = [str(part) for part in command]
+
+    try:
+        if capture_stdout:
+            result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                    text=True, encoding='utf-8', errors='replace')
+            if output_log is not None:
+                write_command_output(output_log, result, append_log)
+        else:
+            if output_log is None:
+                result = subprocess.run(command, stdout=subprocess.DEVNULL,
+                                        stderr=subprocess.STDOUT)
+            else:
+                mode = 'a' if append_log else 'w'
+                with Path(output_log).open(mode, encoding='utf-8') as log_file:
+                    result = subprocess.run(command, stdout=log_file, stderr=subprocess.STDOUT,
+                                            text=True, encoding='utf-8', errors='replace')
+    except OSError as error:
+        if check:
+            quit_with_error(f"could not run command '{command[0]}': {error}")
+        if output_log is not None:
+            try:
+                mode = 'a' if append_log else 'w'
+                with Path(output_log).open(mode, encoding='utf-8') as log_file:
+                    log_file.write(f"Could not run command '{command[0]}': {error}\n")
+            except OSError:
+                pass
+        logger.warning(f"Warning: could not run command '{command[0]}': {error}")
+        result = subprocess.CompletedProcess(command, 127, stderr=str(error))
+
+    if check and result.returncode != 0:
+        quit_with_error(f"command failed with exit code {result.returncode}: "
+                        f"'{shlex.join(command)}'")
+    return result
+
+
+def write_command_output(output_log, result, append):
+    mode = 'a' if append else 'w'
+    with Path(output_log).open(mode, encoding='utf-8') as log_file:
+        log_file.write(result.stderr or '')
+        log_file.write(result.stdout or '')
+
+
+def quit_with_error(message):
+    if logger.handlers:
+        logger.error(f'Error: {message}')
+    else:
+        print(f'Error: {message}', file=sys.stderr)
+    sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

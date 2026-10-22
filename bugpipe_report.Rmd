@@ -90,29 +90,33 @@ td:last-child {
     cat(busco_file, sep = "\n")
     cat("\n```\n")
 
-    flyeinfo_id <- (paste(i,"_flye-info.txt",sep=""))
-    flyeinfo_raw <- read.csv( flyeinfo_id,header = TRUE,sep="\t")
-    flyeinfo_final <- flyeinfo_raw[,c(1,2,3,4)]
-    colnames(flyeinfo_final) <- c("SEQUENCE", "LENGTH", "COVERAGE", "IS_CIRCULAR")
+    format_length <- function(x) {
+      x <- suppressWarnings(as.numeric(x))
+      if (is.na(x)) return("N/A")
+      if (x >= 1e9) paste(round(x / 1e9, 2), "Gb")
+      else if (x >= 1e6) paste(round(x / 1e6, 2), "Mb")
+      else if (x >= 1e3) paste(round(x / 1e3, 2), "Kb")
+      else paste(x, "bp")
+    }
 
-    # Format the LENGTH column with appropriate units (bp, Kb, Mb, Gb)
-    flyeinfo_final$LENGTH <- sapply(flyeinfo_final$LENGTH, function(x) {
-      if (x >= 1e9) {
-        paste(round(x / 1e9, 2), "Gb")
-      } else if (x >= 1e6) {
-        paste(round(x / 1e6, 2), "Mb")
-      } else if (x >= 1e3) {
-        paste(round(x / 1e3, 2), "Kb")
-      } else {
-        paste(x, "bp")
-      }
-    })
-    
-    # Display the flyeinfo table with formatted lengths
-    
-    print(knitr::kable(flyeinfo_final,align= 'llll',caption = "Assembly statistics - \n Generated using flye assembler within dragonflye (https://github.com/rpetit3/dragonflye)"))
-  
-    
+    flye_file <- paste0(i, "_flye-info.txt")
+    summ_file <- paste0(i, "_summary.tsv")
+
+    if (file.exists(flye_file)) {
+      flyeinfo_raw   <- read.csv(flye_file, header=TRUE, sep="\t")
+      flyeinfo_final <- flyeinfo_raw[, c(1,2,3,4)]
+      colnames(flyeinfo_final) <- c("SEQUENCE", "LENGTH", "COVERAGE", "IS_CIRCULAR")
+      flyeinfo_final$LENGTH <- sapply(flyeinfo_final$LENGTH, format_length)
+      print(knitr::kable(flyeinfo_final, align='llll',
+        caption="Assembly statistics - \n Generated using flye assembler within dragonflye (https://github.com/rpetit3/dragonflye)"))
+    } else if (file.exists(summ_file)) {
+      summ_raw  <- read.csv(summ_file, header=TRUE, sep="\t", check.names=FALSE)
+      sel_cols  <- if (ncol(summ_raw) >= 17) c(1,2,3,4,5,17) else seq_len(min(5, ncol(summ_raw)))
+      summ_final <- summ_raw[, sel_cols, drop=FALSE]
+      summ_final[[2]] <- sapply(summ_final[[2]], format_length)
+      print(knitr::kable(summ_final,
+        caption="Assembly statistics - \n Generated using Autocycler (https://github.com/rrwick/Autocycler)"))
+    }
     
 
 

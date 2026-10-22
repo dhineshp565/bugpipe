@@ -15,23 +15,10 @@ include { BUGTYPING } from './subworkflows/bugtyping.nf'
 include { make_report_fastamode } from './modules/local/make_report_fastamode.nf'
 
 
-// Process to create CSV file for FASTA mode report
-process makecsv_fasta {
-    input:
-    path(fasta_dir)
-
-    output:
-    path ("samplelist.csv")
-
-    script:
-    """
-    makecsv_fasta.sh "${fasta_dir}"
-    """
-}
-
 
 
 workflow {
+    
 
     // Check if FASTA input is provided
     if (params.fasta) {
@@ -125,7 +112,7 @@ workflow {
             BUGTYPING.out.vf.collect(),
             BUGTYPING.out.amr.collect(),
             BUGTYPING.out.sero.map {_sample, sero -> sero }.collect(),
-            ASSEMBLY.out.flye_info.collect(),
+            ASSEMBLY.out.assembly_info.collect(),
             mlst.out.collect()
         )
         multiqc(QCREADS.out.read_stats.collect())
